@@ -1,6 +1,5 @@
-/* Minimal cJSON - parse-only, stripped for TinyCraft Launcher */
 /*
-  Copyright (c) 2009-2017 Dave Gamble and cJSON contributors & qwq672
+  Copyright (c) 2009-2017 Dave Gamble and cJSON contributors
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
   of this software and associated documentation files (the "Software"), to deal
@@ -20,6 +19,8 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
+
+/* Minimal cJSON - parse-only, stripped for TinyCraft Launcher */
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>

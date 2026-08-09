@@ -1,8 +1,8 @@
 /*
-Tiny MC Launcher - Full Command Line Version (v260809-1)
+Tiny MC Launcher - Full Command Line Version (v260810-1)
 Cross-platform: Windows/ReactOS + Linux + macOS + BSD
 Compile Windows/ReactOS: gcc -Os tiny_mc.c cJSON.c -o mc.exe -lwinhttp -lshell32 -luser32 -lz
-Compile Linux:   gcc tiny_mc.c cJSON.c -o mc -lcurl -lz
+Compile Linux:   gcc tiny_mc.c cJSON.c -o mc -lcurl -lz -lm
 Compile macOS:   clang tiny_mc.c cJSON.c -o mc -lcurl
 Compile BSD:     clang tiny_mc.c cJSON.c -o mc -lcurl
 Licensed under the MIT License.
@@ -52,6 +52,18 @@ Copyright (c) 2026 qwq672
     #include <curl/curl.h>
 #else
     #error "Unsupported platform."
+#endif
+
+#ifdef PLATFORM_POSIX
+/* ---- POSIX 兼容层：Windows-only API 的等价物 ---- */
+static int CreateDirectoryA(const char* path, void* sec) {
+    (void)sec;
+    return mkdir(path, 0755);
+}
+static void Sleep(unsigned int ms) {
+    unsigned int s = (ms + 999) / 1000; /* 毫秒向上取整到秒 */
+    sleep((unsigned int)s);
+}
 #endif
 
 #include <stdio.h>
@@ -528,7 +540,7 @@ char* http_post(const char* url, const char* json_data) {
     UrlInfo info;
     if (!parse_url(url, &info)) return NULL;
 
-    HINTERNET hSession = WinHttpOpen(L"TinyMC/v260809-1", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+    HINTERNET hSession = WinHttpOpen(L"TinyMC/v260810-1", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                                      WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
     if (!hSession) return NULL;
 
@@ -564,7 +576,7 @@ char* http_get(const char* url) {
     UrlInfo info;
     if (!parse_url(url, &info)) return NULL;
 
-    HINTERNET hSession = WinHttpOpen(L"TinyMC/v260809-1", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+    HINTERNET hSession = WinHttpOpen(L"TinyMC/v260810-1", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                                      WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
     if (!hSession) return NULL;
 
@@ -617,7 +629,7 @@ int http_get_file(const char* url, const char* save_path) {
     INTERNET_PORT port = urlComp.nPort;
     if (port == 0) port = useTls ? 443 : 80;
 
-    HINTERNET hSession = WinHttpOpen(L"TinyMC Launcher/v260809-1",
+    HINTERNET hSession = WinHttpOpen(L"TinyMC Launcher/v260810-1",
                                      WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                                      WINHTTP_NO_PROXY_NAME,
                                      WINHTTP_NO_PROXY_BYPASS, 0);
@@ -767,6 +779,7 @@ int http_get_file(const char* url, const char* save_path) {
     WinHttpCloseHandle(hRequest);
     WinHttpCloseHandle(hConnect);
     WinHttpCloseHandle(hSession);
+    if (!success) remove(save_path); /* 删除残留的残缺文件 */
     return success;
 }
 #else
@@ -857,7 +870,7 @@ int http_get_file(const char* url, const char* save_path) {
     CURLcode res = curl_easy_perform(curl);
     fclose(fp);
     curl_easy_cleanup(curl);
-    
+    if (res != CURLE_OK) remove(save_path); /* 删除残留的残缺文件 */
     return (res == CURLE_OK);
 }
 #endif
@@ -1464,6 +1477,23 @@ static int is_in_resolve_stack(const char* version_id) {
     return 0;
 }
 
+/* 若库路径尚不存在则加入（去重） */
+static void add_lib_if_missing(VersionInfo* info, const char* lib_path) {
+    if (info->lib_count >= MAX_LIBS) return;
+    for (int i = 0; i < info->lib_count; i++)
+        if (strcmp(info->libraries[i], lib_path) == 0) return;
+    info->libraries[info->lib_count] = _strdup(lib_path);
+    info->lib_sizes[info->lib_count] = 0;
+    info->lib_count++;
+}
+
+/* LiteLoader 版本 JSON 常缺 mixin/asm 依赖，据此判断是否需补全 */
+static int is_liteloader(const VersionInfo* info) {
+    for (int i = 0; i < info->lib_count; i++)
+        if (strstr(info->libraries[i], "com/mumfrey/liteloader") != NULL) return 1;
+    return 0;
+}
+
 int resolve_version(const char* version_id, VersionInfo* result) {
     // 循环检测
     if (g_resolve_depth >= MAX_RESOLVE_DEPTH) {
@@ -1553,7 +1583,14 @@ int resolve_version(const char* version_id, VersionInfo* result) {
         }
     }
     if (strlen(result->id) == 0) safe_str_cpy(result->id, sizeof(result->id), version_id);
-    
+
+    /* LiteLoader 依赖补全：其版本 JSON 常缺 mixin/asm，缺失会导致
+       NoClassDefFoundError: MixinBootstrap / asm ClassVisitor */
+    if (is_liteloader(result)) {
+        add_lib_if_missing(result, "org/spongepowered/mixin/0.7.4-SNAPSHOT/mixin-0.7.4-SNAPSHOT.jar");
+        add_lib_if_missing(result, "org/ow2/asm/asm-all/5.2/asm-all-5.2.jar");
+    }
+
     // 出栈
     g_resolve_depth--;
     return 1;
@@ -2201,7 +2238,19 @@ int download_version_json(const char* version_id) {
     char json_path[MAX_PATH_LEN];
     build_mc_path(json_path, sizeof(json_path), version_id, "versions", ".json");
 
-    if (file_exists(json_path)) return 1;
+    /* 校验已有文件是否有效，避免下载中断残留的截断/损坏 JSON 导致永久解析失败 */
+    if (file_exists(json_path)) {
+        char* buf = read_file(json_path);
+        if (buf) {
+            cJSON* chk = cJSON_Parse(buf);
+            int ok = (chk != NULL);
+            if (chk) cJSON_Delete(chk);
+            free(buf);
+            if (ok) return 1;
+            print("Version JSON corrupted, re-downloading...\n");
+        }
+        remove(json_path);
+    }
 
     char url[512];
     safe_str_cpy(url, sizeof(url), MC_BASE_URL);
@@ -2231,6 +2280,77 @@ int download_version_json(const char* version_id) {
     }
     cJSON_Delete(root);
     return 0;
+}
+
+/* 从 maven-metadata.xml 提取第一个 <value>...</value> 内容（即具体快照版本号） */
+static int extract_metadata_value(const char* xml, char* out, size_t out_size) {
+    const char* s = strstr(xml, "<value>");
+    if (!s) return 0;
+    s += 7;
+    const char* e = strstr(s, "</value>");
+    if (!e) return 0;
+    size_t n = (size_t)(e - s);
+    if (n >= out_size) n = out_size - 1;
+    memcpy(out, s, n); out[n] = '\0';
+    return n > 0;
+}
+
+/* 下载库：先直连；若为 SNAPSHOT 且失败，则解析 maven-metadata.xml 取具体快照版本再下载 */
+static int download_lib_remote(const char* base, const char* url_path, const char* full_path) {
+    char url[MAX_PATH_LEN + 160];
+    safe_str_cpy(url, sizeof(url), base);
+    safe_str_cat(url, sizeof(url), url_path);
+    if (http_get_file(url, full_path)) return 1;
+
+    /* SNAPSHOT 处理：.../<v>-SNAPSHOT/<artifact>-<v>-SNAPSHOT.jar */
+    const char* slash = strrchr(url_path, '/');
+    if (!slash) return 0;
+    const char* fname = slash + 1;
+    size_t flen = strlen(fname);
+    const char* SUF = "-SNAPSHOT.jar";
+    size_t sllen = strlen(SUF);
+    if (flen <= sllen || strcmp(fname + flen - sllen, SUF) != 0) return 0;
+
+    size_t dlen = (size_t)(slash - url_path); /* 目录（不含末尾 '/'） */
+    if (dlen <= 0) return 0;
+    char dir[MAX_LIB_PATH];
+    memcpy(dir, url_path, dlen); dir[dlen] = '\0';
+
+    /* artifact 基础名取目录的父段（如 mixin），避免与快照版本重复 */
+    char artifact[MAX_LIB_PATH];
+    const char* p = dir + dlen;            /* dir 末尾 */
+    while (p > dir && p[-1] != '/') p--;   /* p 定位到 "<version>-SNAPSHOT" 段起点 */
+    const char* seg_end = p - 1;           /* 父段之后的 '/' */
+    const char* a = seg_end;
+    while (a > dir && a[-1] != '/') a--;   /* 回退到父段起点 */
+    size_t alen = (size_t)(seg_end - a);
+    if (alen <= 0 || alen >= sizeof(artifact)) return 0;
+    memcpy(artifact, a, alen); artifact[alen] = '\0';
+
+    char meta_url[MAX_PATH_LEN + 160];
+    safe_str_cpy(meta_url, sizeof(meta_url), base);
+    safe_str_cat(meta_url, sizeof(meta_url), dir);
+    safe_str_cat(meta_url, sizeof(meta_url), "/maven-metadata.xml");
+    const char* tmp_name = "maven-metadata.tmp.xml";
+    if (!http_get_file(meta_url, tmp_name)) return 0;
+    char* xml = read_file(tmp_name);
+    remove(tmp_name);
+    if (!xml) return 0;
+    char value[128];
+    int ok = extract_metadata_value(xml, value, sizeof(value));
+    free(xml);
+    if (!ok) return 0;
+
+    char real_url[MAX_PATH_LEN + 160];
+    safe_str_cpy(real_url, sizeof(real_url), base);
+    safe_str_cat(real_url, sizeof(real_url), dir);
+    safe_str_cat(real_url, sizeof(real_url), "/");
+    safe_str_cat(real_url, sizeof(real_url), artifact);
+    safe_str_cat(real_url, sizeof(real_url), "-");
+    safe_str_cat(real_url, sizeof(real_url), value);
+    safe_str_cat(real_url, sizeof(real_url), ".jar");
+    print("    Snapshot resolved: "); print(real_url); print("\n");
+    return http_get_file(real_url, full_path);
 }
 
 // Read entire file into a malloc'd string
@@ -2342,6 +2462,19 @@ int verify_and_download_files(const char* version_id) {
                         cJSON_Delete(jroot);
                     }
                     free(jbuf);
+                }
+                /* 内置回退源：部分库不在 Mojang 仓库（如 LiteLoader 的 mixin/asm），
+                   按 group 前缀映射到其官方仓库；SNAPSHOT 库自动解析具体版本 */
+                if (!dl_ok) {
+                    const char* alt_base = NULL;
+                    if (strncmp(url_path, "org/spongepowered/", 18) == 0)
+                        alt_base = "https://repo.spongepowered.org/repository/maven-public/";
+                    else if (strncmp(url_path, "org/ow2/asm/", 12) == 0)
+                        alt_base = "https://repo1.maven.org/maven2/";
+                    if (alt_base) {
+                        print("    Retry(alt): "); print(alt_base); print(url_path); print("\n");
+                        if (download_lib_remote(alt_base, url_path, full_path)) dl_ok = 1;
+                    }
                 }
             }
             if (dl_ok) {
@@ -2682,7 +2815,7 @@ int build_command(const char* version_id, const AccountInfo* acc, char* cmd_buf,
     else if (strlen(info.assets) > 0) safe_str_cpy(asset_index, sizeof(asset_index), info.assets);
     else safe_str_cpy(asset_index, sizeof(asset_index), version_id);
 
-    char launcher_name[] = "TinyMC", launcher_version[] = "260809-1", clientid[] = "", auth_xuid[] = "";
+    char launcher_name[] = "TinyMC", launcher_version[] = "260810-1", clientid[] = "", auth_xuid[] = "";
     char auth_player_name[128]; safe_str_cpy(auth_player_name, sizeof(auth_player_name), acc->username);
     char version_name[64]; safe_str_cpy(version_name, sizeof(version_name), version_id);
     char game_directory[MAX_PATH_LEN]; safe_str_cpy(game_directory, sizeof(game_directory), mc_path);
@@ -3322,9 +3455,7 @@ void delete_account(int account_index) {
     }
     account_count--;
 
-    char path[MAX_PATH_LEN];
-    get_config_path(path, sizeof(path));
-    WritePrivateProfileStringA("config", "DEFAULT_ACCOUNT", "", path);
+    write_config("DEFAULT_ACCOUNT", "");
 
     print("Account deleted!\n");
 }
@@ -3417,7 +3548,7 @@ static int url_encode(const char* src, char* out, size_t out_size) {
 static char* http_post_urlencoded(const char* url, const char* body) {
     UrlInfo info;
     if (!parse_url(url, &info)) return NULL;
-    HINTERNET hSession = WinHttpOpen(L"TinyMC/v260809-1", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+    HINTERNET hSession = WinHttpOpen(L"TinyMC/v260810-1", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                                      WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
     if (!hSession) return NULL;
     HINTERNET hConnect = WinHttpConnect(hSession, info.host, info.port, 0);
@@ -3469,7 +3600,7 @@ static char* http_post_urlencoded(const char* url, const char* body) {
 static char* http_get_auth(const char* url, const char* token) {
     UrlInfo info;
     if (!parse_url(url, &info)) return NULL;
-    HINTERNET hSession = WinHttpOpen(L"TinyMC/v260809-1", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+    HINTERNET hSession = WinHttpOpen(L"TinyMC/v260810-1", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                                      WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
     if (!hSession) return NULL;
     HINTERNET hConnect = WinHttpConnect(hSession, info.host, info.port, 0);
@@ -5351,7 +5482,7 @@ int main(int argc, char** argv) {
 
     if (argc < 2) { show_help(); return 0; }
 
-    if (str_cmp(argv[1], "-ver") == 0) { print("Tiny MC Launcher v260809-1 (Full cJSON)\n"); return 0; }
+    if (str_cmp(argv[1], "-ver") == 0) { print("Tiny MC Launcher v260810-1 (Full cJSON)\n"); return 0; }
     if (str_cmp(argv[1], "-help") == 0) { show_help(); return 0; }
     if (str_cmp(argv[1], "-?") == 0) { show_help(); return 0; }
     if (str_cmp(argv[1], "-mcpath") == 0 && argc >= 3) { set_mc_path(argv[2]); return 0; }
