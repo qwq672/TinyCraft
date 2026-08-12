@@ -3675,7 +3675,7 @@ static int msa_get_device_code(char* out_user_code, size_t uc_size, char* out_de
 
 /* Step 2: Poll for token (5s interval, ~2min timeout) */
 static int msa_poll_token(const char* device_code, char* out_access_token, size_t at_size, char* out_refresh_token, size_t rt_size) {
-    char body[512], encoded[512];
+    char body[2048], encoded[2048];
     url_encode(device_code, encoded, sizeof(encoded));
     snprintf(body, sizeof(body), "grant_type=urn%%3Aietf%%3Aparams%%3Aoauth%%3Agrant-type%%3Adevice_code&client_id=%s&device_code=%s",
              MSA_CLIENT_ID, encoded);
@@ -3785,7 +3785,7 @@ static int msa_get_profile(const char* mc_token, char* out_uuid, size_t uuid_siz
 /* Main Microsoft OAuth2 device code flow - returns 1 on success */
 static int msa_authenticate(char* out_username, char* out_uuid, char* out_accessToken) {
     printf("[MSA] Starting Microsoft OAuth2 device code flow...\n");
-    char user_code[16], device_code[256], msg[256];
+    char user_code[16], device_code[1024], msg[256];
     if (!msa_get_device_code(user_code, sizeof(user_code), device_code, sizeof(device_code), msg, sizeof(msg))) {
         printf("[MSA] Failed to get device code: %s\n", msg); return 0;
     }
