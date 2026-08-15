@@ -56,7 +56,7 @@ mc -j -list             # List all Java installations
 # Accounts
 mc -u -l offline <username> [-uuid <uuid>]
 mc -u -l external <api_root> <email> <password>
-mc -u -l official <email> <password>   # Reserved
+mc -u -l official   # Reserved
 mc -u -list             # List accounts
 mc -u -del -usertype <index>      # Delete account by index
 mc -u -relogin -usertype <index>  # Re-login external account
