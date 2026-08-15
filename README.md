@@ -56,7 +56,7 @@ mc -j -list             # 列出所有 Java
 # 账户
 mc -u -l offline <username> [-uuid <uuid>]
 mc -u -l external <api_root> <email> <password>
-mc -u -l official <email> <password>   # 预留
+mc -u -l official   # 预留
 mc -u -list             # 列出账户
 mc -u -del -usertype <index>      # 按序号删除账户
 mc -u -relogin -usertype <index>  # 重新登录外置账户
