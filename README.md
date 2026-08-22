@@ -6,7 +6,7 @@
 
 一个用 C 语言编写的跨平台命令行 Minecraft 启动器，秉持“麻雀虽小，五脏俱全”。
 
-- **语言**：C（`tiny_mc.c` + 精简版 `cJSON.c`文件）
+- **语言**：C（`tinycraft.c` + 精简版 `cJSON.c`文件）
 - **许可证**：MIT License，Copyright (c) 2026 qwq672
 - **计划支持的平台**：Windows / ReactOS、Linux、macOS、BSD
 
@@ -28,48 +28,48 @@
 
 ### 编译命令
 
-Windows / ReactOS: `gcc -Os tiny_mc.c cJSON.c -o mc.exe -lwinhttp -lshell32 -luser32 -lz`
+Windows / ReactOS: `gcc -Os tinycraft.c cJSON.c -o tinycraft-launcher.exe -lwinhttp -lshell32 -luser32 -lz`
 
-Linux: `gcc tiny_mc.c cJSON.c -o mc -lcurl -lz -lm`
+Linux: `gcc tinycraft.c cJSON.c -o tinycraft-launcher -lcurl -lz -lm`
 
-macOS / BSD: `clang tiny_mc.c cJSON.c -o mc -lcurl`
+macOS / BSD: `clang tinycraft.c cJSON.c -o tinycraft-launcher -lcurl`
 
 ## 使用
 
 ```bash
-mc -ver                 # 显示版本
-mc -help                # 显示全部命令帮助
+tinycraft-launcher -ver                 # 显示版本
+tinycraft-launcher -help                # 显示全部命令帮助
 
 # 版本管理
-mc -mcpath <path>       # 设置 Minecraft 目录
-mc -lv                  # 列出已安装版本（含 Mod 加载器）
-mc -setver <ver>        # 设置默认版本
-mc -download -ver <type> <ver>   # 下载版本（release/snapshot/old_version/april_fools）
-mc -download -mod_loader <loader> [ver]  # 安装 Mod 加载器
-mc -download -ver_list <type>     # 列出可下载版本
-mc -download -mod_loader_list <loader>   # 列出加载器版本
+tinycraft-launcher -mcpath <path>       # 设置 Minecraft 目录
+tinycraft-launcher -lv                  # 列出已安装版本（含 Mod 加载器）
+tinycraft-launcher -setver <ver>        # 设置默认版本
+tinycraft-launcher -download -ver <type> <ver>   # 下载版本（release/snapshot/old_version/april_fools）
+tinycraft-launcher -download -mod_loader <loader> [ver]  # 安装 Mod 加载器
+tinycraft-launcher -download -ver_list <type>     # 列出可下载版本
+tinycraft-launcher -download -mod_loader_list <loader>   # 列出加载器版本
 
 # Java
-mc -j -au               # 自动扫描 Java
-mc -j -list             # 列出所有 Java
+tinycraft-launcher -j -au               # 自动扫描 Java
+tinycraft-launcher -j -list             # 列出所有 Java
 
 # 账户
-mc -u -l offline <username> [-uuid <uuid>]
-mc -u -l external <api_root> <email> <password>
+tinycraft-launcher -u -l offline <username> [-uuid <uuid>]
+tinycraft-launcher -u -l external <api_root> <email> <password>
 mc -u -l official   # 预留
-mc -u -list             # 列出账户
-mc -u -del -usertype <index>      # 按序号删除账户
-mc -u -relogin -usertype <index>  # 重新登录外置账户
+tinycraft-launcher -u -list             # 列出账户
+tinycraft-launcher -u -del -usertype <index>      # 按序号删除账户
+tinycraft-launcher -u -relogin -usertype <index>  # 重新登录外置账户
 
 # 启动
-mc -s                   # 快速启动（默认设置）
-mc -start               # 交互式启动
-mc -start -ver <name> -account <type,email,pass,server> \
+tinycraft-launcher -s                   # 快速启动（默认设置）
+tinycraft-launcher -start               # 交互式启动
+tinycraft-launcher -start -ver <name> -account <type,email,pass,server> \
      -java_home <path> -mem 2G -no_verify ...
-mc -printstart <ver>    # 导出 start_mc.bat 启动脚本
+tinycraft-launcher -printstart <ver>    # 导出 start_mc.bat 启动脚本
 ```
 
-启动高级参数：`-ver`、`-account`、`-usertype`、`-java_home`、`-mem`、`-jvm_args`、`-game_args`、`-pre_command`、`-window_title`、`-no_authlib`、`-no_verify`、`-java`。更多细节见 `tinycraft -help`。
+启动高级参数：`-ver`、`-account`、`-usertype`、`-java_home`、`-mem`、`-jvm_args`、`-game_args`、`-pre_command`、`-window_title`、`-no_authlib`、`-no_verify`、`-java`。更多细节见 `tinycraft-launcher -help`。
 
 
 
