@@ -21,6 +21,7 @@
 */
 
 /* Minimal cJSON - parse-only, stripped for TinyCraft Launcher */
+/* This version was modified by qwq672 to make it compatible with Tinycraft Launcher. */
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
