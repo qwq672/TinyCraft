@@ -8,11 +8,7 @@ Compile BSD:     clang tiny_mc.c cJSON.c -o mc -lcurl
 Licensed under the MIT License.
 Copyright (c) 2026 qwq672
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!! 发布/开源前务必删除 MSA_CLIENT_ID 私有凭据！          !!!
-!!! REMOVE MSA_CLIENT_ID private credential before release !!!
-!!! 搜索 "f07d70ba" 定位并删除                             !!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 */
 
 // ==================== Platform Detection ====================
@@ -3514,9 +3510,7 @@ void relogin_account(int account_index) {
 }
 
 // ==================== Microsoft OAuth2 Login ====================
-// ╔═════════════════════════════════════════════════
-// ╚══════════════════════════════════════════════════════════════╝
-#define MSA_CLIENT_ID  "114514"
+#define MSA_CLIENT_ID  ""
 #define MSA_DEVICE_URL "https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode"
 #define MSA_TOKEN_URL  "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
 #define XBL_AUTH_URL   "https://user.auth.xboxlive.com/user/authenticate"
